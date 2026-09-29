@@ -1,0 +1,72 @@
+{
+  "name": "segue",
+  "productName": "Segue",
+  "version": "1.4.1",
+  "description": "Analyzes a playlist for tempo, rhythm and key, orders it for smooth flow, and plays it as a continuous DJ-style mix.",
+  "author": "Charalambos",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chamitro/segue.git"
+  },
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.segue.sequencer",
+    "productName": "Segue",
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Audio",
+      "maintainer": "Charalambos <chamitro@users.noreply.github.com>",
+      "synopsis": "Playlist sequencer and DJ-style auto-mixer",
+      "description": "Analyzes a playlist for tempo, rhythm and key, orders it for smooth flow, and plays it as a continuous DJ-style mix."
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "chamitro",
+        "repo": "segue",
+        "releaseType": "draft"
+      }
+    ],
+    "deb": {
+      "packageCategory": "sound",
+      "priority": "optional"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
+  },
+  "homepage": "https://github.com/chamitro/segue"
+}
