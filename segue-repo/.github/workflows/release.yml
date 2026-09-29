@@ -1,7 +1,7 @@
 name: Build and release
 
-# Push a tag like v1.4.1 to build the Windows and Linux (Ubuntu) apps
-# and attach them to a draft GitHub Release. You can also run it by hand from the Actions tab.
+# Push a tag like v1.4.2 to build the Windows and Linux (Ubuntu) apps
+# and publish them as a GitHub Release. You can also run it by hand from the Actions tab.
 on:
   push:
     tags: ["v*"]

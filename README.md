@@ -2,6 +2,19 @@
 
 Segue is a desktop app for Windows and Linux that turns a folder of songs into a continuous, DJ-style mix. It listens to every track, puts them in the order that flows best, and plays the set with beat-matched transitions. Everything runs locally; no audio leaves your computer.
 
+<p align="center">
+  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-Setup.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20installer-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
+  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-linux-amd64.deb"><img alt="Download for Ubuntu" src="https://img.shields.io/badge/Download-Ubuntu%20(.deb)-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
+</p>
+<p align="center">
+  Other downloads:
+  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-portable.exe">Windows portable (.exe)</a> ·
+  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-win-x64.zip">Windows (.zip)</a> ·
+  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-linux-x86_64.AppImage">Linux AppImage</a> ·
+  <a href="https://github.com/chamitro/segue/releases">All releases</a>
+</p>
+
+
 ## What it does
 
 **Analysis.** For each song Segue estimates tempo, beat strength, rhythmic density, musical key (shown in Camelot notation, e.g. 8A) and a relative energy level. It also maps the song's structure in 16-beat phrases: intro, main sections, breakdowns and outro.
@@ -19,11 +32,11 @@ Segue is a desktop app for Windows and Linux that turns a folder of songs into a
 
 ## Download
 
-Ready-made apps for Windows and Linux (Ubuntu) are on the [Releases](../../releases) page.
+Click a button at the top of this page, or pick a file from [Releases](https://github.com/chamitro/segue/releases).
 
-- **Windows:** run `Segue-Setup-x.y.z.exe` to install, or use `Segue-x.y.z-portable.exe` (or the `.zip`) without installing. SmartScreen may warn because the app isn't code-signed: choose *More info -> Run anyway*.
-- **Ubuntu / Debian:** install the `.deb` with `sudo apt install ./Segue-x.y.z-linux-amd64.deb`. Segue then appears in your applications menu and can be started with `segue` from a terminal.
-- **Other Linux:** make the `.AppImage` executable (`chmod +x`) and run it.
+- **Windows:** run `Segue-Setup.exe` to install, or run `Segue-portable.exe` without installing. SmartScreen may warn because the app isn't code-signed: choose *More info -> Run anyway*.
+- **Ubuntu / Debian:** open the downloaded `.deb` with *App Center*, or run `sudo apt install ./Segue-linux-amd64.deb`. Segue then appears in your applications menu; you can also start it with `segue` in a terminal.
+- **Other Linux:** make the `.AppImage` executable (`chmod +x Segue-linux-x86_64.AppImage`) and run it.
 
 ## Run from source
 
@@ -41,7 +54,7 @@ npm run dist:win     # on Windows: installer, portable exe and zip
 npm run dist:linux   # on Linux: .deb for Ubuntu/Debian and AppImage
 ```
 
-Output goes to `dist/`. Pushing a tag such as `v1.4.1` runs the GitHub Actions workflow, which builds the Windows and Linux apps on GitHub's servers and attaches them to a draft release.
+Output goes to `dist/`. Pushing a tag such as `v1.4.2` runs the GitHub Actions workflow, which builds the Windows and Linux apps on GitHub's servers and publishes them as a GitHub release; the download buttons always point to the newest one.
 
 ## How the code is organised
 
