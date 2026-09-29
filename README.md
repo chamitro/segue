@@ -6,11 +6,7 @@ Segue is a desktop app for Windows and Linux that turns a folder of songs into a
   <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-Setup.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%20installer-0078D6?style=for-the-badge&logo=windows&logoColor=white"></a>
   <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-linux-amd64.deb"><img alt="Download for Ubuntu" src="https://img.shields.io/badge/Download-Ubuntu%20(.deb)-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
 </p>
-<p align="center">
-  Other downloads:
-  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-portable.exe">Windows portable (.exe)</a> ·
-  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-win-x64.zip">Windows (.zip)</a> ·
-  <a href="https://github.com/chamitro/segue/releases/latest/download/Segue-linux-x86_64.AppImage">Linux AppImage</a> ·
+<p align="center">·
   <a href="https://github.com/chamitro/segue/releases">All releases</a>
 </p>
 
