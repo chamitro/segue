@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Segue: playlist sequencer</title>
+<link rel="icon" type="image/png" href="icon.png">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; media-src 'self' blob:; worker-src 'self' blob:">
 <style>
 @font-face{font-family:"Bricolage Grotesque";src:url(fonts/bricolage-grotesque-latin-wght-normal.woff2) format("woff2");font-weight:200 800;font-display:swap}
@@ -238,8 +239,9 @@ button,input{font:inherit;color:inherit}
         </div>
         <label class="slider">Fade length <output id="xfadeO">6 s</output>
           <input type="range" id="xfade" min="0" max="12" value="6"></label>
+        <label class="check"><input type="checkbox" id="matchLoud" checked> Match loudness between songs</label>
         <label class="check"><input type="checkbox" id="chain" checked> When a set ends, continue into the next one</label>
-        <p class="hint" style="margin-top:10px">Smart mode mixes out on a phrase boundary, locks the beats together, nudges the next song's tempo (its pitch shifts slightly, like a turntable) and swaps the basslines halfway. Songs without a steady beat get a fade.</p>
+        <p class="hint" style="margin-top:10px">Smart mode mixes out on a phrase boundary, locks the beats together, nudges the next song's tempo (its pitch shifts slightly, like a turntable) and swaps the basslines halfway. Songs without a steady beat get a fade. Loudness matching plays every song at the same level (quiet ones boosted by at most 6 dB) and a limiter catches the peaks where two songs overlap.</p>
       </div>
       <div class="actions">
         <button class="btn primary" id="seqBtn">Find best order</button>
@@ -300,7 +302,7 @@ const $ = s => document.querySelector(s);
 let nextId = 1, nextSetId = 1;
 const newSet = name => ({ id: nextSetId++, name, tracks: [], order: [], original: [], mode: "original",
   weights: { tempo: 1, key: 1, energy: 0.6 }, shape: "smooth", pinFirst: false, pace: 0, fitOn: false, fitMin: 60, total: 0 });
-const state = { sets: [newSet("Set 1")], view: 0, xfade: 6, chain: true, smart: true, maxAdj: 6, entry: "smart" };
+const state = { sets: [newSet("Set 1")], view: 0, xfade: 6, chain: true, smart: true, maxAdj: 6, entry: "smart", matchLoud: true };
 let S = state.sets[0];
 let ctx = null;
 const getCtx = () => (ctx ||= new (window.AudioContext || window.webkitAudioContext)());
@@ -492,20 +494,67 @@ function keyFeatures(x, SR) {
   return { cam, keyName, keyConf: Math.max(0, k.r) };
 }
 
+/* Loudness: ITU-R BS.1770-4 integrated loudness in LUFS (K-weighting, 400 ms blocks, absolute and relative gates) */
+function kWeightCoefs(sr) {
+  // Stage 1: high shelf (+4 dB above ~1.7 kHz). Stage 2: high-pass near 38 Hz. Bilinear-transform forms whose
+  // parameters reproduce the 48 kHz reference coefficients in the standard and generalise to any sample rate.
+  // Each filter is [b0, b1, b2, a1, a2].
+  const shelf = (f0, G, Q) => {
+    const K = Math.tan(Math.PI * f0 / sr), Vh = Math.pow(10, G / 20), Vb = Math.pow(Vh, 0.4996667741545416);
+    const a0 = 1 + K / Q + K * K;
+    return [(Vh + Vb * K / Q + K * K) / a0, 2 * (K * K - Vh) / a0, (Vh - Vb * K / Q + K * K) / a0, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0];
+  };
+  const hpf = (f0, Q) => {
+    const K = Math.tan(Math.PI * f0 / sr), a0 = 1 + K / Q + K * K;
+    return [1, -2, 1, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0];
+  };
+  return [shelf(1681.974450955533, 3.999843853973347, 0.7071752369554196), hpf(38.13547087602444, 0.5003270373238773)];
+}
+function loudnessK(chs, sr) {
+  const hop = Math.round(0.1 * sr), blk = 4 * hop, n = chs[0].length;
+  const nc = Math.floor(n / hop), nb = nc - 3;
+  if (nb < 1) return null;
+  const [[b0, b1, b2, a1, a2], [c0, c1, c2, d1, d2]] = kWeightCoefs(sr);
+  const z = new Float64Array(nb); // mean square of the K-weighted signal per 400 ms block, summed over channels
+  for (const d of chs) {
+    const hs = new Float64Array(nc);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0, v1 = 0, v2 = 0;
+    for (let c = 0; c < nc; c++) {
+      let s = 0;
+      for (let i = c * hop, e = i + hop; i < e; i++) {
+        const x0 = d[i], y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        const v0 = c0 * y0 + c1 * y1 + c2 * y2 - d1 * v1 - d2 * v2;
+        x2 = x1; x1 = x0; y2 = y1; y1 = y0; v2 = v1; v1 = v0;
+        s += v0 * v0;
+      }
+      hs[c] = s;
+    }
+    for (let b = 0; b < nb; b++) z[b] += (hs[b] + hs[b + 1] + hs[b + 2] + hs[b + 3]) / blk;
+  }
+  const lk = p => -0.691 + 10 * Math.log10(p);
+  const gated = thr => { let s = 0, c = 0; for (let b = 0; b < nb; b++) if (z[b] > thr) { s += z[b]; c++; } return c ? s / c : 0; };
+  const abs = Math.pow(10, (-70 + 0.691) / 10);
+  const m1 = gated(abs);
+  if (!(m1 > 0)) return null;
+  const m2 = gated(Math.max(abs, m1 / 10)); // relative gate: blocks more than 10 LU below the gated mean are dropped
+  return m2 > 0 ? lk(m2) : null;
+}
+
 const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + " timed out")), ms))]);
 /* Heavy analysis runs in a background worker so the window stays responsive.
    The worker is built from the same functions used here; if it can't start, analysis falls back to this thread. */
 let worker = null, wSeq = 0;
 const wPending = new Map();
 function workerSource() {
-  const fns = [getFFT, stft, rhythmFeatures, pearson, keyFeatures, mono, envOf, meanRel, beatGrid, songStructure];
+  const fns = [getFFT, stft, rhythmFeatures, pearson, keyFeatures, kWeightCoefs, loudnessK, mono, envOf, meanRel, beatGrid, songStructure];
   return [
     "const fftCache = new Map(); const monoCache = new WeakMap();",
     `const MAJ = ${JSON.stringify(MAJ)}, MIN = ${JSON.stringify(MIN)}, NAMES_MAJ = ${JSON.stringify(NAMES_MAJ)}, NAMES_MIN = ${JSON.stringify(NAMES_MIN)};`,
     ...fns.map(f => f.toString()),
     `const integRel = ${integRel.toString()};`,
     `const analyzeMono = ${analyzeMono.toString()};`,
-    "onmessage = e => { const { id, x, sr } = e.data; try { postMessage({ id, ok: true, res: analyzeMono(x, sr) }); } catch (err) { postMessage({ id, ok: false, err: String(err && err.message || err) }); } };"
+    `const analyze = ${analyze.toString()};`,
+    "onmessage = e => { const { id, chs, sr } = e.data; try { postMessage({ id, ok: true, res: analyze(chs, sr) }); } catch (err) { postMessage({ id, ok: false, err: String(err && err.message || err) }); } };"
   ].join("\n");
 }
 function getWorker() {
@@ -522,11 +571,11 @@ function getWorker() {
   } catch (e) { console.warn("Segue: no background worker", e); worker = false; }
   return worker;
 }
-function runInWorker(x, sr) {
+function runInWorker(chs, sr) {
   const w = getWorker();
   if (!w) return Promise.reject(new Error("worker-failed"));
   const id = ++wSeq;
-  return new Promise((res, rej) => { wPending.set(id, { res, rej }); w.postMessage({ id, x, sr }, [x.buffer]); });
+  return new Promise((res, rej) => { wPending.set(id, { res, rej }); w.postMessage({ id, chs, sr }, chs.map(c => c.buffer)); });
 }
 /* All analysis of one song from a mono signal at its native rate (runs in the worker or here) */
 function analyzeMono(x, sr) {
@@ -541,11 +590,18 @@ function analyzeMono(x, sr) {
   try { struct = songStructure(buf, t); } catch (e) { struct = null; }
   return Object.assign(t, { duration: buf.duration, struct });
 }
-function downmix(buf) {
-  const n = buf.length, ch = buf.numberOfChannels, x = new Float32Array(n);
-  for (let c = 0; c < ch; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) x[i] += d[i] / ch; }
-  return x;
+/* One song from its channels at native rate: loudness is measured on the channels (BS.1770 sums them),
+   everything else on the mono mix (runs in the worker or here) */
+function analyze(chs, sr) {
+  const n = chs[0].length;
+  for (const d of chs) for (let i = 0; i < n; i++) if (!isFinite(d[i])) d[i] = 0;
+  const lufs = loudnessK(chs, sr);
+  let x = chs[0];
+  if (chs.length > 1) { x = new Float32Array(n); for (const d of chs) for (let i = 0; i < n; i++) x[i] += d[i] / chs.length; }
+  return Object.assign(analyzeMono(x, sr), { lufs });
 }
+/* Copies of the channels, so they can be handed to the worker */
+const channels = buf => Array.from({ length: buf.numberOfChannels }, (_, c) => new Float32Array(buf.getChannelData(c)));
 async function analyzeTrack(t) {
   const ac = getCtx();
   const buf = await withTimeout(ac.decodeAudioData(await t.file.arrayBuffer()), 60000, "decode");
@@ -553,11 +609,11 @@ async function analyzeTrack(t) {
   const sr = buf.sampleRate;
   await new Promise(r => setTimeout(r, 0));
   let res;
-  try { res = await withTimeout(runInWorker(downmix(buf), sr), 180000, "analysis"); }
+  try { res = await withTimeout(runInWorker(channels(buf), sr), 180000, "analysis"); }
   catch (e) {
     if (e.message !== "worker-failed") throw e;
     await new Promise(r => setTimeout(r, 0));
-    res = analyzeMono(downmix(buf), sr);
+    res = analyze(channels(buf), sr);
   }
   Object.assign(t, res);
 }
@@ -565,7 +621,7 @@ async function analyzeTrack(t) {
 /* Energy is relative within a set: loudness, onset density, brightness, tempo */
 function computeEnergy(set) {
   const ts = set.tracks.filter(done);
-  const feats = [[t => t.loudDb, 0.45], [t => t.density, 0.3], [t => Math.log(t.centroid + 1), 0.15], [t => t.bpm, 0.1]];
+  const feats = [[t => t.lufs ?? t.loudDb, 0.45], [t => t.density, 0.3], [t => Math.log(t.centroid + 1), 0.15], [t => t.bpm, 0.1]];
   ts.forEach(t => t.energy = 0);
   for (const [fn, w] of feats) {
     const v = ts.map(fn), lo = Math.min(...v), hi = Math.max(...v);
@@ -738,7 +794,7 @@ async function runQueue() {
     try { await Promise.race([analyzeTrack(t), skipP]); if (t.status === "analyzing") t.status = "done"; }
     catch (e) { console.error("Segue: failed on", t.name, e); t.status = "error"; t.err = String(e && e.message || e); }
     if (!state.sets.includes(set)) continue;
-    computeEnergy(set);
+    computeEnergy(set); applyTrims();
     if (!pendingIn(set) && set.tracks.filter(done).length >= 2) {
       set.order = sequence(set); set.mode = "optimized"; syncPlayerPos();
     }
@@ -1106,14 +1162,38 @@ async function getBuffer(t) {
   while (player.cache.size > 3) player.cache.delete(player.cache.keys().next().value);
   return b;
 }
+/* Output bus: a limiter catches the peaks where two songs overlap (equal-power fades can sum to +3 dB) */
+let master = null;
+function getMaster() {
+  if (master) return master;
+  const ac = getCtx(), lim = ac.createDynamicsCompressor();
+  lim.threshold.value = -1; lim.knee.value = 1; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.15;
+  lim.connect(ac.destination);
+  return (master = lim);
+}
+/* Loudness matching: every song is brought towards a common level; quiet songs are boosted by at most LOUD_BOOST dB */
+const LOUD_TARGET = -14, LOUD_BOOST = 6;
+const trimDb = t => (state.matchLoud && done(t) && t.lufs != null ? Math.min(LOUD_BOOST, LOUD_TARGET - t.lufs) : 0);
+const trimGain = t => Math.pow(10, trimDb(t) / 20);
+const fmtDb = db => `${db < 0 ? "−" : "+"}${Math.abs(db).toFixed(1)} dB`;
+function applyTrims() {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  for (const v of [player.cur, player.plan && player.plan.voice]) {
+    if (!v || v.stopped) continue;
+    const g = v.trim.gain;
+    g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(trimGain(v.track), now + 0.3);
+  }
+}
 function makeVoice(t, buf) {
   const ac = getCtx(), src = ac.createBufferSource();
   src.buffer = buf;
   const low = ac.createBiquadFilter(); low.type = "lowshelf"; low.frequency.value = 180; low.gain.value = 0;
   const hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 20; hp.Q.value = 0.7;
   const gain = ac.createGain();
-  src.connect(low); low.connect(hp); hp.connect(gain); gain.connect(ac.destination);
-  const v = { track: t, src, low, hp, gain, buf, stopped: false, sched: [] };
+  const trim = ac.createGain(); trim.gain.value = trimGain(t);
+  src.connect(low); low.connect(hp); hp.connect(gain); gain.connect(trim); trim.connect(getMaster());
+  const v = { track: t, src, low, hp, gain, trim, buf, stopped: false, sched: [] };
   src.onended = () => { v.ended = true; if (player.cur === v && !v.stopped) advance(); };
   return v;
 }
@@ -1385,7 +1465,8 @@ function renderList() {
       body = `<div class="pending">${t.status === "analyzing" ? `Analyzing… <button class="btn" style="padding:2px 10px;margin-left:8px;font-size:.8rem" data-skip="${id}">Skip</button>` : "Waiting…"}</div>`;
     }
     html.push(`<li class="row${isCur ? " playing" : ""}${t.status === "error" ? " dim" : ""}">${posBtn}
-      <div style="min-width:0"><div class="name" title="${esc(t.name)}">${esc(t.name)}</div><div class="sub">${t.win ? `plays ${fmt(t.win.dur)} of ${fmt(t.duration)}${t.win.skip ? `, from ${fmt(t.win.in)}` : ""}` : t.duration ? fmt(t.duration) : ""}</div></div>
+      <div style="min-width:0"><div class="name" title="${esc(t.name)}">${esc(t.name)}</div><div class="sub">${[t.win ? `plays ${fmt(t.win.dur)} of ${fmt(t.duration)}${t.win.skip ? `, from ${fmt(t.win.in)}` : ""}` : t.duration ? fmt(t.duration) : "",
+        state.matchLoud && done(t) && t.lufs != null ? `<span title="${t.lufs.toFixed(1)} LUFS">${fmtDb(trimDb(t))}</span>` : ""].filter(Boolean).join(" · ")}</div></div>
       ${body}<button class="rm" data-rm="${id}" aria-label="Remove ${esc(t.name)}">×</button></li>`);
     const nt = byId(S.order[i + 1]);
     if (nt && done(t) && done(nt)) {
@@ -1538,6 +1619,7 @@ $("#pinFirst").onchange = e => { S.pinFirst = e.target.checked; schedule(); };
 let rpT;
 const replanSoon = () => { clearTimeout(rpT); rpT = setTimeout(replan, 300); };
 $("#chain").onchange = e => { state.chain = e.target.checked; replan(); };
+$("#matchLoud").onchange = e => { state.matchLoud = e.target.checked; applyTrims(); renderList(); };
 $("#xfade").addEventListener("input", e => { state.xfade = +e.target.value; $("#xfadeO").textContent = e.target.value === "0" ? "off" : e.target.value + " s"; replanSoon(); });
 $("#maxAdj").addEventListener("input", e => { state.maxAdj = +e.target.value; $("#maxAdjO").textContent = e.target.value === "0" ? "off" : "±" + e.target.value + "%"; renderList(); replanSoon(); });
 document.querySelectorAll('input[name="tmode"]').forEach(r => r.addEventListener("change", e => { state.smart = e.target.value === "smart"; $("#smartOpts").hidden = !state.smart; renderList(); replan(); }));

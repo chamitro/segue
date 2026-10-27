@@ -9,6 +9,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1280, height: 860, minWidth: 420, minHeight: 500,
     title: "Segue",
+    icon: path.join(__dirname, "app", "icon.png"),
     backgroundColor: "#11152A",
     autoHideMenuBar: true,
     webPreferences: {

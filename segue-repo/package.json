@@ -29,6 +29,7 @@
       "app/**/*"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "portable",
@@ -42,6 +43,7 @@
       "artifactName": "${productName}-Setup.${ext}"
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         "AppImage",
         "deb"

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3A48E8"/>
+      <stop offset="1" stop-color="#151B4E"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.22" cy="0.12" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6FE8C3"/>
+      <stop offset="0.5" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D4B6FF"/>
+    </linearGradient>
+    <filter id="blur" x="-20%" y="-30%" width="140%" height="160%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="230" fill="url(#glow)"/>
+  <!-- the segue: the brand curve from the app header (26-unit path scaled x32), two songs joined by one flowing line -->
+  <g transform="translate(0,28)">
+    <path d="M160 672 C320 672 352 352 512 352 S704 608 864 288" transform="translate(0,22)" fill="none" stroke="#0A0D28" stroke-opacity="0.45" stroke-width="100" stroke-linecap="round" filter="url(#blur)"/>
+    <path d="M160 672 C320 672 352 352 512 352 S704 608 864 288" fill="none" stroke="url(#wave)" stroke-width="100" stroke-linecap="round"/>
+  </g>
+</svg>
