@@ -1,0 +1,36 @@
+name: Build and release
+
+# Push a tag like v1.4.2 to build the Windows and Linux (Ubuntu) apps
+# and publish them as a GitHub Release. You can also run it by hand from the Actions tab.
+# The app lives in segue-repo/, so every step runs from there.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: segue-repo
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: segue-repo/package-lock.json
+      - run: npm ci
+      - name: Build and publish
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
